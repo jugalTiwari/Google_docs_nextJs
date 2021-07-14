@@ -1,4 +1,4 @@
-import React, {useState} from "react";
+import React, {useState,useEffect} from "react";
 import firebase from "firebase";
 import {useCollectionOnce} from 'react-firebase-hooks/firestore';
 import Head from 'next/head'
@@ -15,6 +15,16 @@ import Login from "../components/Login";
 import {buttonCommonProps} from "../components/utils";
 import {db} from '../firebase'
 import DocumentRow from "../components/DocumentRow";
+import {useRouter} from "next/router";
+
+function getData(session) {
+    return useCollectionOnce(
+        db.collection('userDocs')
+            .doc(session.user.email)
+            .collection('docs')
+            .orderBy('timestamp', 'desc')
+    )
+}
 
 export default function Home() {
     const [session] = useSession();
@@ -24,6 +34,7 @@ export default function Home() {
     }
 
     const [showModal, setModal] = useState(false),
+        router = useRouter(),
         [input, setInput] = useState(''),
         [snapshot] = useCollectionOnce(
             db.collection('userDocs')
@@ -41,35 +52,30 @@ export default function Home() {
                 fileName: input,
                 timestamp: firebase.firestore.FieldValue.serverTimestamp()
             }).then(res => {
-            setInput('')
-            setModal(false)
-        })
+                const {id = ''} = res || {};
+                if (id){
+                    setInput('')
+                    setModal(false)
+                    router.push('/doc/'+ id)
+                }
+            })
+            .catch(function(error) {
+                console.error("Error adding document: ", error);
+            });
 
     }
 
     const modal = (
-    <Modal size='sm' active={showModal} toggler={() => setModal(false)}>
-        <ModalBody>
-            <input className='outline-none w-full' value={input} onChange={e => setInput(e.target.value)} type='text' placeholder='Enter name of document' onKeyDown={e=> e.key === 'Enter' && createDocument()}/>
-        </ModalBody>
-        <ModalFooter>
-            <Button color='blue' buttonType='link' onClick={e=> setModal(false)}>Cancel</Button>
-            <Button color='blue' ripple='light' onClick={createDocument}>Create</Button>
-        </ModalFooter>
-    </Modal>
-)
-    let rows = null;
-
-    if(snapshot){
-       rows = snapshot?.docs?.map((doc) => {
-           return <DocumentRow
-               key={doc.id}
-               id={doc.id}
-               fileName={doc.data().fileName}
-               timestamp={doc.data().timestamp}
-           />
-       })
-    }
+        <Modal size='sm' active={showModal} toggler={() => setModal(false)}>
+            <ModalBody>
+                <input className='outline-none w-full' value={input} onChange={e => setInput(e.target.value)} type='text' placeholder='Enter name of document' onKeyDown={e=> e.key === 'Enter' && createDocument()}/>
+            </ModalBody>
+            <ModalFooter>
+                <Button color='blue' buttonType='link' onClick={e=> setModal(false)}>Cancel</Button>
+                <Button color='blue' ripple='light' onClick={createDocument}>Create</Button>
+            </ModalFooter>
+        </Modal>
+    )
 
   return (
     <div className="">
@@ -107,7 +113,14 @@ export default function Home() {
                     <Icon name='folder' size='3xl' color='gray'/>
                 </div>
             </div>
-            {rows}
+            {snapshot?.docs?.map((doc) => {
+                return <DocumentRow
+                    key={doc.id}
+                    id={doc.id}
+                    fileName={doc.data().fileName}
+                    timestamp={doc.data().timestamp}
+                />
+            })}
         </section>
     </div>
   )
